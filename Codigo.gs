@@ -15,8 +15,9 @@ var TAB_DISPOSITIVOS  = 'Dispositivos';
 var TAB_GRUPOS        = 'Grupos';
 var TAB_SESIONES_EVAL = 'SesionesEval';
 var TAB_EVALUACIONES  = 'Evaluaciones';
-var TAB_ALUMNOS       = 'Alumnos';
-var TAB_GRUPO_ALUMNOS = 'GrupoAlumnos';
+var TAB_ALUMNOS         = 'Alumnos';
+var TAB_GRUPO_ALUMNOS   = 'GrupoAlumnos';
+var TAB_MATERIA_DOCENTES = 'MateriaDocentes';
 
 var NOTA_APROBACION = 60;
 var NOTA_PROMOCION  = 80;
@@ -71,7 +72,11 @@ function doPost(e) {
   else if (action === 'getAlumnosGrupo')     result = getAlumnosGrupo(data);
   else if (action === 'asignarAlumnoGrupo')  result = asignarAlumnoGrupo(data);
   else if (action === 'removeAlumnoGrupo')   result = removeAlumnoGrupo(data);
-  else if (action === 'saveMateriaConfig')   result = saveMateriaConfig(data);
+  else if (action === 'saveMateriaConfig')      result = saveMateriaConfig(data);
+  else if (action === 'getMateriaDocentes')     result = getMateriaDocentes(data);
+  else if (action === 'saveMateriaDocente')     result = saveMateriaDocente(data);
+  else if (action === 'deleteMateriaDocente')   result = deleteMateriaDocente(data);
+  else if (action === 'asignarDocenteGrupo')    result = asignarDocenteGrupo(data);
   else if (action === 'abrirSesionEval')   result = abrirSesionEval(data);
   else if (action === 'cerrarSesionEval')  result = cerrarSesionEval(data);
   else if (action === 'getSesionesEval')   result = getSesionesEval(data);
@@ -127,8 +132,9 @@ function setupSheets() {
     crearSiNoExiste(TAB_GRUPOS,         ['ID','MateriaID','DocenteID','Nombre','TPNumero','FechaInicio','FechaFin','URLAlumnos']);
     crearSiNoExiste(TAB_SESIONES_EVAL,  ['ID','MateriaID','DocenteID','GrupoID','TipoActividad','Nombre','Fecha','Estado','AsistenciaToken']);
     crearSiNoExiste(TAB_EVALUACIONES,   ['ID','SesionEvalID','Legajo','Alumno','DocenteID','TipoActividad','Calificacion','Proceso','Presentacion','Comentario','Fecha','Hora','EsRecuperatorio','SesionOriginalID']);
-    crearSiNoExiste(TAB_ALUMNOS,        ['Legajo','Nombre','Carrera','FechaAlta']);
-    crearSiNoExiste(TAB_GRUPO_ALUMNOS,  ['ID','GrupoID','Legajo']);
+    crearSiNoExiste(TAB_ALUMNOS,          ['Legajo','Nombre','Carrera','FechaAlta']);
+    crearSiNoExiste(TAB_GRUPO_ALUMNOS,   ['ID','GrupoID','Legajo']);
+    crearSiNoExiste(TAB_MATERIA_DOCENTES,['ID','MateriaID','DocenteID','Rol']);
 
     // Verificar si ya existe admin
     var doc = ss.getSheetByName(TAB_DOCENTES);
@@ -251,13 +257,24 @@ function getMaterias(data) {
   var ss  = SpreadsheetApp.openById(SHEET_ID);
   var mat = ss.getSheetByName(TAB_MATERIAS);
   if (!mat) return { ok: true, materias: [] };
+  // materias donde el docente es titular directo o tiene rol en MateriaDocentes
+  var mdSh = ss.getSheetByName(TAB_MATERIA_DOCENTES);
+  var rolesDocente = {};
+  if (mdSh && data.docenteId) {
+    mdSh.getDataRange().getValues().slice(1).forEach(function(r) {
+      if (r[0] && String(r[2]) === String(data.docenteId)) rolesDocente[String(r[1])] = r[3]||'grupo';
+    });
+  }
   var rows = mat.getDataRange().getValues().slice(1);
   var materias = rows.filter(function(r) {
     if (!r[0]) return false;
     if (data.rol === 'admin') return true;
-    return String(r[1]) === String(data.docenteId);
+    if (String(r[1]) === String(data.docenteId)) return true;
+    return !!rolesDocente[String(r[0])];
   }).map(function(r) {
-    return { id: r[0], docenteId: r[1], nombre: r[2], aula: r[3], radio: r[4]||200, urlAlumnos: r[5]||'', sheetId: extractSheetId(r[6]), pesoTardanza: r[8] !== undefined && r[8] !== '' ? parseInt(r[8]) : 100, cantTP: r[9]!==undefined&&r[9]!=='' ? parseInt(r[9]) : null, cantParcial: r[10]!==undefined&&r[10]!=='' ? parseInt(r[10]) : null, cantEntrega: r[11]!==undefined&&r[11]!=='' ? parseInt(r[11]) : null, cantRecup: r[12]!==undefined&&r[12]!=='' ? parseInt(r[12]) : null };
+    var rolEnMateria = String(r[1]) === String(data.docenteId) ? 'titular' : (rolesDocente[String(r[0])] || 'grupo');
+    if (data.rol === 'admin') rolEnMateria = 'admin';
+    return { id: r[0], docenteId: r[1], nombre: r[2], aula: r[3], radio: r[4]||200, urlAlumnos: r[5]||'', sheetId: extractSheetId(r[6]), pesoTardanza: r[8]!==undefined&&r[8]!==''?parseInt(r[8]):100, cantTP: r[9]!==undefined&&r[9]!==''?parseInt(r[9]):null, cantParcial: r[10]!==undefined&&r[10]!==''?parseInt(r[10]):null, cantEntrega: r[11]!==undefined&&r[11]!==''?parseInt(r[11]):null, cantRecup: r[12]!==undefined&&r[12]!==''?parseInt(r[12]):null, rolEnMateria: rolEnMateria };
   });
   return { ok: true, materias: materias };
 }
@@ -771,6 +788,60 @@ function deleteGrupo(data) {
   var rows = sh.getDataRange().getValues();
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(data.id)) { sh.deleteRow(i+1); return { ok: true }; }
+  }
+  return { ok: false, error: 'Grupo no encontrado' };
+}
+
+// ── MATERIA DOCENTES ─────────────────────────────────────────
+function getMateriaDocentes(data) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sh = ss.getSheetByName(TAB_MATERIA_DOCENTES);
+  if (!sh) return { ok: true, docentes: [] };
+  var rows = sh.getDataRange().getValues().slice(1);
+  var docSh = ss.getSheetByName(TAB_DOCENTES);
+  var docMap = {};
+  docSh.getDataRange().getValues().slice(1).forEach(function(r){ if(r[0]) docMap[String(r[0])] = String(r[1]); });
+  var docentes = rows.filter(function(r){ return r[0] && String(r[1]) === String(data.materiaId); }).map(function(r) {
+    return { id: r[0], materiaId: r[1], docenteId: r[2], rol: r[3], nombre: docMap[String(r[2])]||r[2] };
+  });
+  return { ok: true, docentes: docentes };
+}
+
+function saveMateriaDocente(data) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sh = ss.getSheetByName(TAB_MATERIA_DOCENTES);
+  if (!sh) { setupSheets(); sh = ss.getSheetByName(TAB_MATERIA_DOCENTES); }
+  var rows = sh.getDataRange().getValues().slice(1);
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][1]) === String(data.materiaId) && String(rows[i][2]) === String(data.docenteId)) {
+      sh.getRange(i+2, 4).setValue(data.rol);
+      return { ok: true };
+    }
+  }
+  sh.appendRow([generarId(), data.materiaId, data.docenteId, data.rol]);
+  return { ok: true };
+}
+
+function deleteMateriaDocente(data) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sh = ss.getSheetByName(TAB_MATERIA_DOCENTES);
+  if (!sh) return { ok: false };
+  var rows = sh.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(data.id)) { sh.deleteRow(i+1); return { ok: true }; }
+  }
+  return { ok: false };
+}
+
+function asignarDocenteGrupo(data) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sh = ss.getSheetByName(TAB_GRUPOS);
+  var rows = sh.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(data.grupoId)) {
+      sh.getRange(i+1, 3).setValue(data.docenteId);
+      return { ok: true };
+    }
   }
   return { ok: false, error: 'Grupo no encontrado' };
 }
