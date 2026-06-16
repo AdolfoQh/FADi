@@ -196,7 +196,7 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
 .score-chip.recup{background:var(--yellow-bg);color:var(--yellow);border-color:var(--yellow-border)}
 
 /* QR FLOTANTE */
-.qr-modal{position:fixed;top:80px;left:50%;transform:translateX(-50%);width:420px;background:var(--white);border:2px solid var(--cobalt);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.25);z-index:500;display:none;flex-direction:column;cursor:move;user-select:none}
+.qr-modal{position:fixed;top:80px;left:50%;transform:translateX(-50%);width:660px;background:var(--white);border:2px solid var(--cobalt);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.25);z-index:500;display:none;flex-direction:column;cursor:move;user-select:none}
 .qr-modal.visible{display:flex}
 .qr-modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);cursor:move}
 .qr-modal-title{font-size:14px;font-weight:700;color:var(--text)}
@@ -305,6 +305,47 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
         <button class="btn btn-primary" id="btn-sesion" onclick="toggleSesion()">Activar QR</button>
       </div>
 
+      <div class="card" id="card-mis-grupos" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div class="section-title" style="margin-bottom:0">Mis grupos</div>
+          <button onclick="toggleFormGrupoDocente()" id="btn-nuevo-grupo" style="font-size:12px;font-weight:700;padding:5px 12px;border:1.5px solid var(--cobalt);border-radius:8px;background:var(--cobalt-light);color:var(--cobalt);cursor:pointer">+ Nuevo</button>
+        </div>
+        <div id="form-nuevo-grupo" style="display:none;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px">
+          <div class="field" style="margin-bottom:10px">
+            <label class="field-label">Nombre del grupo</label>
+            <input type="text" id="ng-nombre-doc" placeholder="Ej: Comisión A, Turno mañana...">
+          </div>
+          <div class="field" style="margin-bottom:10px">
+            <label class="field-label">URL CSV de alumnos</label>
+            <input type="text" id="ng-url-doc" placeholder="URL del CSV publicado">
+          </div>
+          <div class="field" style="margin-bottom:12px">
+            <label class="field-label">Cantidad de TPs</label>
+            <select id="ng-tp-doc">
+              <option value="0">Sin TPs</option>
+              <option value="1">1 TP</option>
+              <option value="2">2 TPs</option>
+              <option value="3">3 TPs</option>
+              <option value="4" selected>4 TPs</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="crearGrupoDocente()" class="btn btn-primary" style="flex:1;padding:8px">Guardar</button>
+            <button onclick="toggleFormGrupoDocente()" style="padding:8px 14px;border:1.5px solid var(--border-strong);border-radius:8px;background:transparent;cursor:pointer;font-size:13px">Cancelar</button>
+          </div>
+        </div>
+        <div id="mis-grupos-list"><div class="empty-state" style="font-size:12px">Sin grupos creados</div></div>
+      </div>
+
+      <div class="card" id="card-cobertura" style="display:none">
+        <div class="section-title">Cobertura</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">¿Estás cubriendo a otro docente? Seleccioná su grupo para usar su lista de alumnos.</div>
+        <div class="field">
+          <label class="field-label">Grupo a cubrir</label>
+          <select id="sel-cobertura" onchange="seleccionarCobertura()"><option value="">— Sin cobertura —</option></select>
+        </div>
+      </div>
+
       <div class="card qr-card">
         <div class="section-title" style="margin-bottom:0">Código QR</div>
         <div class="qr-frame" id="qr-frame">
@@ -326,6 +367,7 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
     </div>
 
     <div class="card">
+      <div id="lista-presentes-wrap">
       <div id="dashboard-wrap" style="display:none;margin-bottom:18px">
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
           <div style="background:var(--green-bg);border:1.5px solid var(--green-border);border-radius:12px;padding:14px 12px;text-align:center">
@@ -365,6 +407,8 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
       </div>
       <div class="alumno-list" id="alumno-list"><div class="empty-state">Seleccioná una materia y activá el QR</div></div>
 
+      </div><!-- /lista-presentes-wrap -->
+
       <div id="consulta-panel" style="display:none;margin-top:18px">
         <div class="consulta-header">
           <div>
@@ -390,7 +434,7 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
       </div>
       <div class="field" id="eval-field-grupo" style="max-width:320px;display:none">
         <label class="field-label">Grupo</label>
-        <select id="eval-sel-grupo"><option value="">— Sin grupo —</option></select>
+        <select id="eval-sel-grupo" onchange="onEvalGrupoChange()"><option value="">— Sin grupo —</option></select>
       </div>
       <div class="eval-tipo-sel" id="eval-tipos">
         <div style="font-size:13px;color:var(--text-muted);padding:8px 0">Seleccioná una materia para ver las opciones</div>
@@ -586,7 +630,7 @@ function mostrarModalQR() {
   modal.classList.add('visible');
   document.getElementById('qrcode-modal').innerHTML = '';
   if (_qrModalUrl) {
-    new QRCode(document.getElementById('qrcode-modal'), {text:_qrModalUrl, width:280, height:280, colorDark:'#111827', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M});
+    new QRCode(document.getElementById('qrcode-modal'), {text:_qrModalUrl, width:600, height:600, colorDark:'#111827', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M});
   }
 }
 
@@ -626,6 +670,91 @@ function actualizarModalQR(url, nombre, timerEl) {
     document.addEventListener('mouseup', function() { dragging = false; });
   });
 })();
+
+function toggleFormGrupoDocente() {
+  var f = document.getElementById('form-nuevo-grupo');
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+}
+
+function crearGrupoDocente() {
+  var matId = document.getElementById('sel-materia').value;
+  var nombre = document.getElementById('ng-nombre-doc').value.trim();
+  var url = document.getElementById('ng-url-doc').value.trim();
+  var tp = parseInt(document.getElementById('ng-tp-doc').value) || 0;
+  if (!matId) { toast('Seleccioná una materia primero','twarn'); return; }
+  if (!nombre) { toast('Ingresá un nombre para el grupo','twarn'); return; }
+  api('saveGrupo', {materiaId: matId, docenteId: usuario.id, nombre: nombre, urlAlumnos: url, tpNumero: tp}, function(r) {
+    if (!r.ok) { toast('Error creando grupo','terr'); return; }
+    toast('Grupo creado','tok');
+    document.getElementById('ng-nombre-doc').value = '';
+    document.getElementById('ng-url-doc').value = '';
+    toggleFormGrupoDocente();
+    cargarMisGrupos(matId);
+    cargarGruposEnSel(matId, 'sel-grupo', function(grupos) {
+      document.getElementById('field-grupo').style.display = grupos.length ? '' : 'none';
+    });
+  });
+}
+
+function cargarMisGrupos(matId) {
+  if (!matId) { document.getElementById('mis-grupos-list').innerHTML = '<div class="empty-state" style="font-size:12px">Sin grupos creados</div>'; return; }
+  api('getGrupos', {materiaId: matId, docenteId: usuario.id}, function(r) {
+    if (!r.ok || !r.grupos.length) {
+      document.getElementById('mis-grupos-list').innerHTML = '<div class="empty-state" style="font-size:12px">Sin grupos creados</div>';
+      return;
+    }
+    document.getElementById('mis-grupos-list').innerHTML = r.grupos.map(function(g) {
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">'+
+        '<div><div style="font-size:13px;font-weight:700">'+g.nombre+'</div>'+
+        '<div style="font-size:11px;color:var(--text-muted)">'+(g.tpNumero ? g.tpNumero+' TPs' : 'Sin TPs')+(g.urlAlumnos ? ' · Lista cargada' : ' · Sin lista')+'</div></div>'+
+        '<button onclick="eliminarGrupoDoc(\''+g.id+'\',\''+matId+'\')" style="font-size:11px;padding:3px 8px;border:1px solid var(--red-border);color:var(--red);background:var(--red-bg);border-radius:6px;cursor:pointer">Eliminar</button>'+
+      '</div>';
+    }).join('');
+    // cargar grupos de otros docentes para cobertura
+    cargarCobertura(matId);
+  });
+}
+
+function eliminarGrupoDoc(id, matId) {
+  if (!confirm('¿Eliminar este grupo?')) return;
+  api('deleteGrupo', {id: id}, function(r) {
+    if (r.ok) { toast('Grupo eliminado','twarn'); cargarMisGrupos(matId); cargarGruposEnSel(matId, 'sel-grupo', function(){}); }
+    else toast('Error','terr');
+  });
+}
+
+function cargarCobertura(matId) {
+  api('getGrupos', {materiaId: matId}, function(r) {
+    var card = document.getElementById('card-cobertura');
+    var otros = (r.grupos || []).filter(function(g){ return g.docenteId !== usuario.id && g.urlAlumnos; });
+    if (!otros.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    var sel = document.getElementById('sel-cobertura');
+    sel.innerHTML = '<option value="">— Sin cobertura —</option>' +
+      otros.map(function(g){ return '<option value="'+g.id+'" data-url="'+g.urlAlumnos+'" data-tp="'+(g.tpNumero||0)+'">'+g.nombre+'</option>'; }).join('');
+  });
+}
+
+function seleccionarCobertura() {
+  var sel = document.getElementById('sel-cobertura');
+  var opt = sel.options[sel.selectedIndex];
+  if (opt.value) {
+    grupoActual = { id: opt.value, urlAlumnos: opt.getAttribute('data-url'), tpNumero: parseInt(opt.getAttribute('data-tp'))||0, cobertura: true };
+    toast('Usando lista de '+opt.textContent,'tok');
+  } else {
+    grupoActual = null;
+  }
+}
+
+function ocultarListaPresentes() {
+  var wrap = document.getElementById('lista-presentes-wrap');
+  if (wrap) wrap.style.display = 'none';
+}
+
+function mostrarListaPresentes() {
+  var wrap = document.getElementById('lista-presentes-wrap');
+  if (wrap) wrap.style.display = '';
+}
 
 function actualizarTipoClase() {
   ['consulta','teorico','entrega','parcial'].forEach(function(t) {
@@ -907,7 +1036,7 @@ function checkSesionActiva() {
   api('getSesionActiva', {docenteId: usuario.id}, function(r) {
     if (r.ok && r.sesion) {
       curSesion = r.sesion; sesionActiva = true;
-      document.getElementById('btn-sesion').textContent = 'Cerrar sesión';
+      document.getElementById('btn-sesion').textContent = 'Cerrar QR';
       document.getElementById('btn-sesion').className = 'btn btn-danger';
       timerSec = Math.max(0, Math.floor((new Date(r.sesion.expira) - new Date()) / 1000));
       mostrarQR(SCRIPT_URL+'?vista=alumno&token='+r.sesion.token, r.sesion.nombreClase);
@@ -934,8 +1063,9 @@ function toggleSesion() {
       curSesion.urlAlumnos = r.materia ? r.materia.urlAlumnos : (r.urlAlumnos || '');
       sesionActiva = true;
       timerSec = minutos * 60;
-      document.getElementById('btn-sesion').textContent = 'Cerrar sesión';
+      document.getElementById('btn-sesion').textContent = 'Cerrar QR';
       document.getElementById('btn-sesion').className = 'btn btn-danger';
+      mostrarListaPresentes();
       mostrarQR(r.qrUrl, nombreClase);
       startTimer();
       cargarAlumnos(opt.getAttribute('data-url'));
@@ -950,6 +1080,7 @@ function toggleSesion() {
     document.getElementById('btn-sesion').textContent = 'Activar QR';
     document.getElementById('btn-sesion').className = 'btn btn-primary';
     ocultarQR();
+    ocultarListaPresentes();
     api('cerrarSesion', {sesion:ses}, function(){
       toast('Sesión cerrada y guardada','tok');
       abrirConsulta(ses);
@@ -989,31 +1120,21 @@ var enTardanza = false;
 function startTimer() {
   var el = document.getElementById('timer');
   enTardanza = false;
-  var tardanzaSec = 15 * 60;
   timerInt = setInterval(function() {
     timerSec--;
-    if (timerSec <= 0 && !enTardanza) {
-      enTardanza = true; timerSec = tardanzaSec;
-      el.className = 'qr-timer warn';
-      document.getElementById('qr-label').textContent = 'Período de tardanza — 15 min';
-      document.getElementById('qr-badge').style.background = 'var(--yellow-bg)';
-      document.getElementById('qr-badge').style.color = 'var(--yellow)';
-      document.getElementById('qr-badge').style.borderColor = 'var(--yellow-border)';
-      if (curSesion) api('extenderSesion', {token: curSesion.token, minutos: 15}, function(){});
-      toast('Período de tardanza iniciado — 15 min', 'twarn');
-      return;
-    }
-    if (timerSec <= 0 && enTardanza) {
-      clearInterval(timerInt); enTardanza = false;
+    if (timerSec <= 0) {
+      clearInterval(timerInt);
       el.className = 'qr-timer exp'; el.textContent = 'CERRADO';
       document.getElementById('qr-frame').classList.remove('active');
       document.getElementById('qr-label').textContent = 'Sesión cerrada automáticamente';
+      ocultarModalQR();
       if (curSesion) {
         var ses = curSesion; curSesion = null;
         sesionActiva = false; presentes = {}; alumnos = []; renderLista();
         document.getElementById('dashboard-wrap').style.display = 'none';
         document.getElementById('btn-sesion').textContent = 'Activar QR';
         document.getElementById('btn-sesion').className = 'btn btn-primary';
+        ocultarListaPresentes();
         api('cerrarSesion', {sesion:ses}, function(){
           toast('Sesión cerrada y asistencia guardada', 'tok');
           abrirConsulta(ses);
@@ -1126,25 +1247,40 @@ function filterLista(q) {
 function onClaseMateriaChange() {
   var matId = document.getElementById('sel-materia').value;
   grupoActual = null;
-  if (!matId) { document.getElementById('field-grupo').style.display = 'none'; return; }
+  if (!matId) {
+    document.getElementById('field-grupo').style.display = 'none';
+    document.getElementById('card-mis-grupos').style.display = 'none';
+    document.getElementById('card-cobertura').style.display = 'none';
+    return;
+  }
+  document.getElementById('card-mis-grupos').style.display = '';
+  cargarMisGrupos(matId);
   cargarGruposEnSel(matId, 'sel-grupo', function(grupos) {
     document.getElementById('field-grupo').style.display = grupos.length ? '' : 'none';
   });
 }
 
+var _gruposCache = {};
+
 function cargarGruposEnSel(matId, selId, cb) {
   api('getGrupos', {materiaId: matId, docenteId: usuario.id}, function(r) {
     var sel = document.getElementById(selId);
     if (!r.ok || !r.grupos.length) { sel.innerHTML = '<option value="">— Sin grupo —</option>'; if (cb) cb([]); return; }
+    _gruposCache[matId] = r.grupos;
     sel.innerHTML = '<option value="">— Sin grupo —</option>' +
-      r.grupos.map(function(g){ return '<option value="'+g.id+'" data-docenteid="'+g.docenteId+'">'+g.nombre+'</option>'; }).join('');
+      r.grupos.map(function(g){ return '<option value="'+g.id+'" data-url="'+(g.urlAlumnos||'')+'" data-tp="'+(g.tpNumero||0)+'" data-docenteid="'+g.docenteId+'">'+g.nombre+'</option>'; }).join('');
+    sel.onchange = function() {
+      var opt = sel.options[sel.selectedIndex];
+      grupoActual = opt.value ? { id: opt.value, urlAlumnos: opt.getAttribute('data-url'), tpNumero: parseInt(opt.getAttribute('data-tp'))||0, docenteId: opt.getAttribute('data-docenteid') } : null;
+    };
     if (cb) cb(r.grupos);
   });
 }
 
 function abrirConsulta(ses) {
-  if (!ses || !ses.urlAlumnos) return;
-  var grupoId = (document.getElementById('sel-grupo') && document.getElementById('sel-grupo').value) || '';
+  var urlAlumnos = (grupoActual && grupoActual.urlAlumnos) ? grupoActual.urlAlumnos : ses.urlAlumnos;
+  if (!urlAlumnos) return;
+  var grupoId = (grupoActual && grupoActual.id) || (document.getElementById('sel-grupo') && document.getElementById('sel-grupo').value) || '';
   consultaScores = {}; sesionEvalActual = null;
   api('abrirSesionEval', {
     materiaId: ses.materiaId, docenteId: usuario.id,
@@ -1153,7 +1289,7 @@ function abrirConsulta(ses) {
   }, function(r) {
     if (!r.ok) { toast('Error abriendo consulta','terr'); return; }
     sesionEvalActual = r;
-    api('getAlumnos', {urlAlumnos: ses.urlAlumnos}, function(ra) {
+    api('getAlumnos', {urlAlumnos: urlAlumnos}, function(ra) {
       if (!ra.ok) { toast('Error cargando lista','terr'); return; }
       var listaAlumnos = ra.alumnos;
       var hoy = new Date();
@@ -1169,6 +1305,16 @@ function abrirConsulta(ses) {
             api('saveEvaluacion', { sesionEvalId: r.id, legajo: a.legajo, nombre: a.nombre,
               docenteId: usuario.id, tipoActividad: 'consulta', calificacion: 0 }, function(){});
           }
+        });
+        // ordenar: presentes primero por hora de llegada, ausentes después
+        var presOrden = {};
+        if (rr.ok) rr.registros.forEach(function(reg, i){ presOrden[reg.legajo] = reg.hora || '99:99'; });
+        listaAlumnos.sort(function(a, b) {
+          var ha = presOrden[a.legajo], hb = presOrden[b.legajo];
+          if (ha && hb) return ha < hb ? -1 : 1;
+          if (ha) return -1;
+          if (hb) return 1;
+          return 0;
         });
         renderConsulta(listaAlumnos, legajosPresentes, ses.nombreClase);
       });
@@ -1233,14 +1379,17 @@ var evalTipoActual = null;
 var evalAlumnos = [];
 var evalSesionId = null;
 
-var EVAL_TIPOS = [
-  { id:'tp1',label:'TP 1',tipo:'tp'},{ id:'tp2',label:'TP 2',tipo:'tp'},
-  { id:'tp3',label:'TP 3',tipo:'tp'},{ id:'tp4',label:'TP 4',tipo:'tp'},
-  { id:'parcial1',label:'Parcial 1',tipo:'parcial'},{ id:'parcial2',label:'Parcial 2',tipo:'parcial'},
-  { id:'recup_tp1',label:'Recup. TP 1',tipo:'recup'},{ id:'recup_tp2',label:'Recup. TP 2',tipo:'recup'},
-  { id:'recup_tp3',label:'Recup. TP 3',tipo:'recup'},{ id:'recup_tp4',label:'Recup. TP 4',tipo:'recup'},
-  { id:'recup_parcial1',label:'Recup. P1',tipo:'recup'},{ id:'recup_parcial2',label:'Recup. P2',tipo:'recup'}
-];
+function getEvalTipos(tpNumero) {
+  var n = tpNumero !== undefined && tpNumero !== null ? tpNumero : 4;
+  var tipos = [];
+  for (var i = 1; i <= n; i++) tipos.push({ id:'tp'+i, label:'TP '+i, tipo:'tp' });
+  tipos.push({ id:'parcial1', label:'Parcial 1', tipo:'parcial' });
+  tipos.push({ id:'parcial2', label:'Parcial 2', tipo:'parcial' });
+  for (var j = 1; j <= n; j++) tipos.push({ id:'recup_tp'+j, label:'Recup. TP '+j, tipo:'recup' });
+  tipos.push({ id:'recup_parcial1', label:'Recup. P1', tipo:'recup' });
+  tipos.push({ id:'recup_parcial2', label:'Recup. P2', tipo:'recup' });
+  return tipos;
+}
 
 function iniciarVistaEvaluacion() {
   var sel = document.getElementById('eval-sel-materia');
@@ -1254,10 +1403,25 @@ function onEvalMateriaChange() {
   if (!matId) { document.getElementById('eval-tipos').innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:8px 0">Seleccioná una materia</div>'; return; }
   cargarGruposEnSel(matId, 'eval-sel-grupo', function(grupos) {
     document.getElementById('eval-field-grupo').style.display = grupos.length ? '' : 'none';
+    var tp = grupos.length ? (grupos[0].tpNumero || 4) : 4;
+    renderEvalTipos(tp);
   });
-  document.getElementById('eval-tipos').innerHTML = EVAL_TIPOS.map(function(t) {
+  renderEvalTipos(grupoActual ? grupoActual.tpNumero : 4);
+}
+
+function renderEvalTipos(tpNumero) {
+  document.getElementById('eval-tipos').innerHTML = getEvalTipos(tpNumero).map(function(t) {
     return '<button class="tipo-btn'+(t.tipo==='recup'?' recup':'')+'" onclick="selEvalTipo(\''+t.id+'\',\''+t.label+'\',\''+t.tipo+'\',this)">'+t.label+'</button>';
   }).join('');
+}
+
+function onEvalGrupoChange() {
+  var sel = document.getElementById('eval-sel-grupo');
+  var opt = sel.options[sel.selectedIndex];
+  var tp = opt.value ? (parseInt(opt.getAttribute('data-tp')) || 4) : 4;
+  evalTipoActual = null;
+  document.getElementById('eval-form').style.display = 'none';
+  renderEvalTipos(tp);
 }
 
 function selEvalTipo(tipoId, label, tipoCat, btn) {
@@ -1300,37 +1464,60 @@ function cargarEvalScores() {
   api('getEvaluaciones', {sesionEvalId: evalSesionId}, function(r) {
     var scores = {};
     if (r.ok) r.evaluaciones.forEach(function(e){ scores[e.legajo] = e; });
-    renderEvalAlumnos(scores);
+    // si es recuperatorio, cargar también la nota original para mostrar referencia
+    var esRecup = evalTipoActual && evalTipoActual.cat === 'recup';
+    if (esRecup) {
+      var tipoOrig = evalTipoActual.id.replace('recup_','');
+      var matId = document.getElementById('eval-sel-materia').value;
+      api('getSesionesEval', {materiaId: matId, tipoActividad: tipoOrig}, function(ro) {
+        var origScores = {};
+        if (ro.ok && ro.sesiones.length) {
+          api('getEvaluaciones', {sesionEvalId: ro.sesiones[ro.sesiones.length-1].id}, function(ro2) {
+            if (ro2.ok) ro2.evaluaciones.forEach(function(e){ origScores[e.legajo] = e; });
+            renderEvalAlumnos(scores, origScores);
+          });
+        } else { renderEvalAlumnos(scores, {}); }
+      });
+    } else { renderEvalAlumnos(scores, null); }
   });
 }
 
-function renderEvalAlumnos(scores) {
+function renderEvalAlumnos(scores, origScores) {
   var esTP = evalTipoActual && evalTipoActual.cat === 'tp';
+  var esRecup = evalTipoActual && evalTipoActual.cat === 'recup';
   var html = evalAlumnos.map(function(a) {
     var sc = scores[a.legajo];
-    var proceso = sc ? sc.proceso : '';
-    var presentacion = sc ? sc.presentacion : '';
-    var cal = sc ? sc.calificacion : '';
-    var aprobado = cal !== '' && cal !== null && Number(cal) >= 60;
-    var reprobado = cal !== '' && cal !== null && Number(cal) < 60;
-    var totalColor = cal===''||cal===null ? 'vacio' : (aprobado ? 'ok' : 'no');
+    var proceso = sc && sc.proceso !== null && sc.proceso !== undefined ? sc.proceso : '';
+    var presentacion = sc && sc.presentacion !== null && sc.presentacion !== undefined ? sc.presentacion : '';
+    var cal = sc && sc.calificacion !== null && sc.calificacion !== undefined ? sc.calificacion : '';
+    var aprobado = cal !== '' && Number(cal) >= 60;
+    var reprobado = cal !== '' && Number(cal) < 60;
+    var totalColor = cal === '' ? 'vacio' : (aprobado ? 'ok' : 'no');
+    var notaOrigHtml = '';
+    if (esRecup && origScores) {
+      var orig = origScores[a.legajo];
+      var notaOrig = orig && orig.calificacion !== null && orig.calificacion !== undefined ? orig.calificacion : '—';
+      notaOrigHtml = '<div class="eval-input-wrap"><span class="eval-input-label">Nota original</span>'+
+        '<div class="eval-total '+(notaOrig!=='—'?(Number(notaOrig)>=60?'ok':'no'):'vacio')+'">'+notaOrig+'</div></div>';
+    }
     if (esTP) {
       return '<div class="eval-alumno-row'+(aprobado?' aprobado':reprobado?' reprobado':'')+'" id="erow-'+a.legajo+'">'+
         '<div class="eval-nombre">'+a.nombre+'<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">Leg. '+a.legajo+'</div></div>'+
         '<div class="eval-inputs">'+
           '<div class="eval-input-wrap"><span class="eval-input-label">Proceso /70</span>'+
-          '<input class="eval-num" type="number" min="0" max="70" value="'+(proceso||'')+'" id="ep-'+a.legajo+'" oninput="recalcTP(\''+a.legajo+'\')"></div>'+
+          '<input class="eval-num" type="number" min="0" max="70" value="'+proceso+'" id="ep-'+a.legajo+'" oninput="recalcTP(\''+a.legajo+'\')"></div>'+
           '<div class="eval-input-wrap"><span class="eval-input-label">Present. /30</span>'+
-          '<input class="eval-num" type="number" min="0" max="30" value="'+(presentacion||'')+'" id="epr-'+a.legajo+'" oninput="recalcTP(\''+a.legajo+'\')"></div>'+
+          '<input class="eval-num" type="number" min="0" max="30" value="'+presentacion+'" id="epr-'+a.legajo+'" oninput="recalcTP(\''+a.legajo+'\')"></div>'+
           '<div class="eval-input-wrap"><span class="eval-input-label">Total</span>'+
-          '<div class="eval-total '+totalColor+'" id="et-'+a.legajo+'">'+(cal!==''&&cal!==null?cal:'—')+'</div></div>'+
+          '<div class="eval-total '+totalColor+'" id="et-'+a.legajo+'">'+(cal!==''?cal:'—')+'</div></div>'+
         '</div></div>';
     } else {
       return '<div class="eval-alumno-row'+(aprobado?' aprobado':reprobado?' reprobado':'')+'" id="erow-'+a.legajo+'">'+
         '<div class="eval-nombre">'+a.nombre+'<div style="font-size:11px;color:var(--text-muted);font-family:var(--mono)">Leg. '+a.legajo+'</div></div>'+
         '<div class="eval-inputs">'+
-          '<div class="eval-input-wrap"><span class="eval-input-label">Nota /100</span>'+
-          '<input class="eval-num" type="number" min="0" max="100" value="'+(cal||'')+'" id="en-'+a.legajo+'" oninput="actualizarColorParcial(\''+a.legajo+'\')"></div>'+
+          notaOrigHtml+
+          '<div class="eval-input-wrap"><span class="eval-input-label">'+(esRecup?'Recup.':'Nota')+' /100</span>'+
+          '<input class="eval-num" type="number" min="0" max="100" value="'+cal+'" id="en-'+a.legajo+'" oninput="actualizarColorParcial(\''+a.legajo+'\')"></div>'+
         '</div></div>';
     }
   }).join('');
@@ -1416,6 +1603,13 @@ function renderResumen(lista) {
     });
     if (r.consultas && r.consultas.total > 0) chips += '<span class="score-chip">Cons. ø'+r.consultas.promedio+'</span>';
     if (r.asistencia !== null) chips += '<span class="score-chip">Asist. '+r.asistencia+'%</span>';
+    var np = null;
+    if (r.asistencia !== null && r.consultas && r.consultas.total > 0) {
+      np = Math.round(((r.asistencia/100)*14 + (r.consultas.promedio/4)*56) * 10) / 10;
+    } else if (r.asistencia !== null) {
+      np = Math.round((r.asistencia/100)*14 * 10) / 10;
+    }
+    if (np !== null) chips += '<span class="score-chip" style="background:var(--cobalt-light);border-color:var(--cobalt-mid);color:var(--cobalt);font-weight:700">NP '+np+'</span>';
     return '<div class="resumen-alumno-card" data-estado="'+estado+'">'+
       '<div class="resumen-top">'+
         '<div><div class="resumen-nombre">'+r.alumno+'</div>'+
