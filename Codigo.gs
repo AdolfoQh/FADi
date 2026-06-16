@@ -727,7 +727,7 @@ function getGrupos(data) {
     if (data.docenteId && data.docenteId !== 'admin' && String(r[2]) !== String(data.docenteId)) return false;
     return true;
   }).map(function(r) {
-    return { id: r[0], materiaId: r[1], docenteId: r[2], nombre: r[3], tpNumero: r[4]||0, fechaInicio: normalizarFecha(r[5]), fechaFin: normalizarFecha(r[6]) };
+    return { id: r[0], materiaId: r[1], docenteId: r[2], nombre: r[3], tpNumero: r[4]||0, fechaInicio: normalizarFecha(r[5]), fechaFin: normalizarFecha(r[6]), urlAlumnos: r[7]||'' };
   });
   return { ok: true, grupos: grupos };
 }
@@ -736,8 +736,8 @@ function saveGrupo(data) {
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var sh = ss.getSheetByName(TAB_GRUPOS);
   var id = generarId();
-  sh.appendRow([id, data.materiaId, data.docenteId, data.nombre, data.tpNumero||0, data.fechaInicio||'', data.fechaFin||'']);
-  return { ok: true, id: id };
+  sh.appendRow([id, data.materiaId, data.docenteId, data.nombre, data.tpNumero||0, data.fechaInicio||'', data.fechaFin||'', data.urlAlumnos||'']);
+  return { ok: true, id: id, urlAlumnos: data.urlAlumnos||'' };
 }
 
 function editarGrupo(data) {
@@ -750,6 +750,7 @@ function editarGrupo(data) {
       if (data.tpNumero !== undefined)    sh.getRange(i+1,5).setValue(data.tpNumero);
       if (data.fechaInicio !== undefined) sh.getRange(i+1,6).setValue(data.fechaInicio);
       if (data.fechaFin !== undefined)    sh.getRange(i+1,7).setValue(data.fechaFin);
+      if (data.urlAlumnos !== undefined)  sh.getRange(i+1,8).setValue(data.urlAlumnos);
       return { ok: true };
     }
   }
