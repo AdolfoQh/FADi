@@ -626,7 +626,7 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
 <div class="toast" id="toast"></div>
 
 <script>
-var SCRIPT_URL = 'PONER_URL_ACA';
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwS1guDxH4qsTe1GIi8lv0-5L-w5U8b40GIvkzOrCdNx6h6g2UZmutmEVKOEQ29JGtyzA/exec';
 var usuario = null;
 var sesionActiva = false;
 var timerSec = 600;
@@ -900,6 +900,16 @@ function cargarVistaMateria() {
           '<span class="expand-arrow" id="arrow-'+m.id+'">&#9660;</span></div>' +
         '</div>' +
         '<div class="materia-expand-body" id="mbody-'+m.id+'" style="display:none">' +
+          (m.rolEnMateria === 'titular' || m.rolEnMateria === 'asociado' || m.rolEnMateria === 'adjunto' || m.rolEnMateria === 'admin' ?
+          '<div style="border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:16px">' +
+            '<div class="field-label" style="margin-bottom:10px">Docentes de la cátedra</div>' +
+            '<div id="mat-docentes-'+m.id+'"></div>' +
+            '<div style="display:flex;gap:6px;margin-top:8px" id="form-doc-mat-'+m.id+'">' +
+              '<select id="sel-doc-mat-'+m.id+'" style="flex:1;font-size:12px;padding:5px 8px;border:1.5px solid var(--border-strong);border-radius:7px"><option value="">— Seleccionar docente —</option></select>' +
+              '<select id="sel-rol-mat-'+m.id+'" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border-strong);border-radius:7px"><option value="asociado">Asociado</option><option value="adjunto">Adjunto</option><option value="grupo">Docente de grupo</option></select>' +
+              '<button onclick="agregarDocenteMat(\''+m.id+'\')" style="font-size:12px;padding:5px 10px;border:1.5px solid var(--cobalt);border-radius:7px;background:var(--cobalt-light);color:var(--cobalt);cursor:pointer;white-space:nowrap">+ Agregar</button>' +
+            '</div>' +
+          '</div>' : '') +
           '<div style="border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:16px">' +
             '<div class="field-label" style="margin-bottom:10px">Evaluaciones del curso</div>' +
             '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">' +
@@ -941,7 +951,51 @@ function toggleMateriaExpand(matId) {
   var open = body.style.display !== 'none';
   body.style.display = open ? 'none' : '';
   arrow.innerHTML = open ? '&#9660;' : '&#9650;';
-  if (!open) cargarGruposMat(matId);
+  if (!open) { cargarGruposMat(matId); cargarDocentesMat(matId); }
+}
+
+function cargarDocentesMat(matId) {
+  api('getMateriaDocentes', {materiaId: matId}, function(r) {
+    var cont = document.getElementById('mat-docentes-'+matId);
+    if (!cont) return;
+    if (!r.ok || !r.docentes.length) { cont.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">Solo el titular por ahora</div>'; }
+    else {
+      cont.innerHTML = r.docentes.map(function(d) {
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;background:var(--bg);border-radius:7px;margin-bottom:4px;font-size:12px">' +
+          '<span>'+d.nombre+' <span style="color:var(--text-muted)">('+d.rol+')</span></span>' +
+          '<button onclick="quitarDocenteMat(\''+d.id+'\',\''+matId+'\')" style="font-size:11px;padding:1px 7px;border:1px solid var(--border-strong);border-radius:5px;background:transparent;cursor:pointer;color:var(--text-mid)">&#10005;</button>' +
+        '</div>';
+      }).join('');
+    }
+    // poblar select de docentes disponibles
+    var sel = document.getElementById('sel-doc-mat-'+matId);
+    if (!sel) return;
+    api('getDocentes', {password: usuario.password}, function(rd) {
+      if (!rd.ok) return;
+      var yaAsignados = (r.docentes||[]).map(function(d){ return d.docenteId; });
+      var mat = materias.find(function(m){ return m.id === matId; });
+      sel.innerHTML = '<option value="">— Seleccionar docente —</option>' +
+        rd.docentes.filter(function(d){ return d.id !== (mat&&mat.docenteId) && yaAsignados.indexOf(d.id) === -1; })
+        .map(function(d){ return '<option value="'+d.id+'">'+d.nombre+'</option>'; }).join('');
+    });
+  });
+}
+
+function agregarDocenteMat(matId) {
+  var docenteId = document.getElementById('sel-doc-mat-'+matId).value;
+  var rol = document.getElementById('sel-rol-mat-'+matId).value;
+  if (!docenteId) { toast('Seleccioná un docente','twarn'); return; }
+  api('saveMateriaDocente', {materiaId: matId, docenteId: docenteId, rol: rol}, function(r) {
+    if (r.ok) { toast('Docente agregado','tok'); cargarDocentesMat(matId); }
+    else toast('Error','terr');
+  });
+}
+
+function quitarDocenteMat(id, matId) {
+  api('deleteMateriaDocente', {id: id}, function(r) {
+    if (r.ok) { toast('Docente quitado','twarn'); cargarDocentesMat(matId); }
+    else toast('Error','terr');
+  });
 }
 
 function guardarConfigMateria(matId) {
@@ -979,21 +1033,83 @@ function cargarGruposMat(matId) {
   api('getGrupos', {materiaId: matId, docenteId: usuario.id}, function(r) {
     var cont = document.getElementById('grupos-mat-'+matId);
     if (!r.ok || !r.grupos.length) { cont.innerHTML = '<div class="empty-state" style="font-size:12px">Sin grupos creados</div>'; return; }
-    cont.innerHTML = r.grupos.map(function(g) {
-      return '<div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px" id="gblock-'+g.id+'">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
-          '<div style="font-size:13px;font-weight:700">'+g.nombre+'</div>' +
-          '<button onclick="eliminarGrupoMat(\''+g.id+'\',\''+matId+'\')" style="font-size:11px;padding:2px 8px;border:1px solid var(--red-border);color:var(--red);background:var(--red-bg);border-radius:6px;cursor:pointer">Eliminar</button>' +
-        '</div>' +
-        '<div id="al-grupo-'+g.id+'"><div style="font-size:12px;color:var(--text-muted)">Cargando...</div></div>' +
-        '<div style="margin-top:8px;display:flex;gap:6px">' +
-          '<input type="text" id="busq-'+g.id+'" placeholder="Buscar alumno por nombre o legajo..." style="flex:1;font-size:12px;padding:6px 10px;border:1.5px solid var(--border-strong);border-radius:7px;background:var(--white)" oninput="buscarAlumnoParaGrupo(\''+g.id+'\')">' +
-        '</div>' +
-        '<div id="busq-res-'+g.id+'" style="margin-top:4px"></div>' +
-      '</div>';
-    }).join('');
-    r.grupos.forEach(function(g){ cargarAlumnosDeGrupo(g.id); });
+    // cargar docentes disponibles para asignar
+    api('getMateriaDocentes', {materiaId: matId}, function(rd) {
+      var docentesMat = rd.ok ? rd.docentes : [];
+      // incluir titular
+      var mat = materias.find(function(m){ return m.id === matId; });
+      var optsDoc = '<option value="">— Sin asignar —</option>';
+      if (mat) optsDoc += '<option value="'+mat.docenteId+'">'+(mat.docenteNombre||'Titular')+'</option>';
+      docentesMat.forEach(function(d){ optsDoc += '<option value="'+d.docenteId+'">'+d.nombre+' ('+d.rol+')</option>'; });
+
+      cont.innerHTML = r.grupos.map(function(g) {
+        return '<div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px" id="gblock-'+g.id+'">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
+            '<div style="font-size:14px;font-weight:700">'+g.nombre+'</div>' +
+            '<button onclick="eliminarGrupoMat(\''+g.id+'\',\''+matId+'\')" style="font-size:11px;padding:2px 8px;border:1px solid var(--red-border);color:var(--red);background:var(--red-bg);border-radius:6px;cursor:pointer">Eliminar</button>' +
+          '</div>' +
+          '<div style="margin-bottom:10px">' +
+            '<label class="field-label" style="font-size:11px">Docente responsable</label>' +
+            '<div style="display:flex;gap:6px">' +
+              '<select id="doc-grupo-'+g.id+'" style="flex:1;font-size:12px;padding:5px 8px;border:1.5px solid var(--border-strong);border-radius:7px">'+optsDoc+'</select>' +
+              '<button onclick="asignarDocGrupo(\''+g.id+'\')" style="font-size:12px;padding:5px 10px;border:1.5px solid var(--cobalt);border-radius:7px;background:var(--cobalt-light);color:var(--cobalt);cursor:pointer">Asignar</button>' +
+            '</div>' +
+          '</div>' +
+          '<label class="field-label" style="font-size:11px">Alumnos del grupo</label>' +
+          '<div id="al-grupo-'+g.id+'" style="margin-bottom:8px"></div>' +
+          '<label class="field-label" style="font-size:11px;margin-top:6px">Agregar alumnos</label>' +
+          '<input type="text" id="busq-'+g.id+'" placeholder="Filtrar por nombre o legajo..." style="width:100%;font-size:12px;padding:6px 10px;border:1.5px solid var(--border-strong);border-radius:7px;background:var(--white);margin-bottom:6px;box-sizing:border-box" oninput="filtrarNominaGrupo(\''+g.id+'\')">' +
+          '<div id="nomina-grupo-'+g.id+'" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>' +
+        '</div>';
+      }).join('');
+
+      r.grupos.forEach(function(g) {
+        // pre-seleccionar docente actual
+        var sel = document.getElementById('doc-grupo-'+g.id);
+        if (sel && g.docenteId) sel.value = g.docenteId;
+        cargarAlumnosDeGrupo(g.id);
+        cargarNominaParaGrupo(g.id);
+      });
+    });
   });
+}
+
+function asignarDocGrupo(grupoId) {
+  var docenteId = document.getElementById('doc-grupo-'+grupoId).value;
+  api('asignarDocenteGrupo', {grupoId: grupoId, docenteId: docenteId}, function(r) {
+    if (r.ok) toast('Docente asignado','tok');
+    else toast('Error','terr');
+  });
+}
+
+function cargarNominaParaGrupo(grupoId) {
+  api('getAlumnosGlobal', {}, function(r) {
+    if (!r.ok) return;
+    _nominaCache = r.alumnos;
+    renderNominaGrupo(grupoId, r.alumnos);
+  });
+}
+
+var _nominaCache = [];
+
+function filtrarNominaGrupo(grupoId) {
+  var q = document.getElementById('busq-'+grupoId).value.toLowerCase();
+  var filtrados = q ? _nominaCache.filter(function(a){
+    return a.nombre.toLowerCase().indexOf(q) !== -1 || a.legajo.indexOf(q) !== -1;
+  }) : _nominaCache;
+  renderNominaGrupo(grupoId, filtrados);
+}
+
+function renderNominaGrupo(grupoId, lista) {
+  var cont = document.getElementById('nomina-grupo-'+grupoId);
+  if (!cont) return;
+  if (!lista.length) { cont.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:8px">Sin resultados</div>'; return; }
+  cont.innerHTML = lista.map(function(a) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;font-size:12px;border-bottom:1px solid var(--border)" id="nrow-'+grupoId+'-'+a.legajo+'">' +
+      '<span>'+a.nombre+' <span style="color:var(--text-muted);font-family:var(--mono)">'+a.legajo+'</span></span>' +
+      '<button onclick="agregarAlumnoGrupo(\''+grupoId+'\',\''+a.legajo+'\',\''+esc(a.nombre)+'\')" style="font-size:11px;padding:2px 8px;border:1.5px solid var(--cobalt);border-radius:5px;background:var(--cobalt-light);color:var(--cobalt);cursor:pointer" id="nbtn-'+grupoId+'-'+a.legajo+'">+</button>' +
+    '</div>';
+  }).join('');
 }
 
 function cargarAlumnosDeGrupo(grupoId) {
@@ -1028,8 +1144,9 @@ function buscarAlumnoParaGrupo(grupoId) {
 function agregarAlumnoGrupo(grupoId, legajo, nombre) {
   api('asignarAlumnoGrupo', {grupoId: grupoId, legajo: legajo}, function(r) {
     if (!r.ok) { toast('Error','terr'); return; }
-    document.getElementById('busq-'+grupoId).value = '';
-    document.getElementById('busq-res-'+grupoId).innerHTML = '';
+    // marcar botón como agregado
+    var btn = document.getElementById('nbtn-'+grupoId+'-'+legajo);
+    if (btn) { btn.textContent = '✓'; btn.style.background='var(--green-bg)'; btn.style.borderColor='var(--green-border)'; btn.style.color='var(--green)'; btn.disabled=true; }
     cargarAlumnosDeGrupo(grupoId);
     toast(nombre.split(',')[0]+' agregado','tok');
   });
