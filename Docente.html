@@ -194,6 +194,25 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
 .score-chip.ok{background:var(--green-bg);color:var(--green);border-color:var(--green-border)}
 .score-chip.no{background:var(--red-bg);color:var(--red);border-color:var(--red-border)}
 .score-chip.recup{background:var(--yellow-bg);color:var(--yellow);border-color:var(--yellow-border)}
+
+/* QR FLOTANTE */
+.qr-modal{position:fixed;top:80px;left:50%;transform:translateX(-50%);width:420px;background:var(--white);border:2px solid var(--cobalt);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.25);z-index:500;display:none;flex-direction:column;cursor:move;user-select:none}
+.qr-modal.visible{display:flex}
+.qr-modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);cursor:move}
+.qr-modal-title{font-size:14px;font-weight:700;color:var(--text)}
+.qr-modal-badge{background:var(--cobalt-light);color:var(--cobalt);border:1px solid var(--cobalt-mid);border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700}
+.qr-modal-badge.warn{background:var(--yellow-bg);color:var(--yellow);border-color:var(--yellow-border)}
+.qr-modal-close{width:28px;height:28px;border-radius:6px;border:1.5px solid var(--border-strong);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text-mid);transition:all .15s}
+.qr-modal-close:hover{border-color:var(--red);color:var(--red)}
+.qr-modal-body{display:flex;flex-direction:column;align-items:center;padding:24px;gap:16px}
+.qr-modal-frame{padding:16px;background:white;border:2px solid var(--cobalt);border-radius:16px;box-shadow:0 0 0 6px var(--cobalt-light);animation:glow 2.5s infinite}
+.qr-modal-frame.warn{border-color:var(--yellow);box-shadow:0 0 0 6px var(--yellow-bg)}
+.qr-modal-timer{font-family:var(--mono);font-size:48px;font-weight:500;color:var(--cobalt);letter-spacing:-.02em}
+.qr-modal-timer.warn{color:var(--yellow)}
+.qr-modal-timer.exp{color:var(--red)}
+.qr-modal-label{font-size:13px;color:var(--text-muted)}
+.btn-show-qr{width:100%;padding:10px;background:var(--cobalt-light);border:1.5px solid var(--cobalt-mid);border-radius:10px;color:var(--cobalt);font-family:var(--sans);font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;margin-top:8px}
+.btn-show-qr:hover{background:var(--cobalt);color:white}
 </style>
 </head>
 <body>
@@ -242,16 +261,37 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
       <div class="card">
         <div class="section-title">Configurar clase</div>
         <div class="field">
-          <label class="field-label">Nombre de la clase</label>
-          <input type="text" id="nombre-clase" placeholder="Ej: Clase PSE, Entrega, Consulta...">
-        </div>
-        <div class="field">
           <label class="field-label">Materia</label>
           <select id="sel-materia" onchange="onClaseMateriaChange()"><option value="">— Seleccionar materia —</option></select>
         </div>
         <div class="field" id="field-grupo" style="display:none">
           <label class="field-label">Grupo</label>
           <select id="sel-grupo"><option value="">— Sin grupo —</option></select>
+        </div>
+        <div class="field">
+          <label class="field-label">Fecha</label>
+          <input type="text" id="fecha-clase" readonly style="background:var(--bg);color:var(--text-mid);cursor:default">
+        </div>
+        <div class="field">
+          <label class="field-label">Tipo de clase</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border:1.5px solid var(--border-strong);border-radius:8px;font-size:14px;font-weight:500;transition:all .15s" id="lbl-consulta">
+              <input type="checkbox" id="tipo-consulta" value="Consulta" onchange="actualizarTipoClase()" checked style="width:auto"> Consulta
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border:1.5px solid var(--border-strong);border-radius:8px;font-size:14px;font-weight:500;transition:all .15s" id="lbl-teorico">
+              <input type="checkbox" id="tipo-teorico" value="Teórico" onchange="actualizarTipoClase()" style="width:auto"> Teórico
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border:1.5px solid var(--border-strong);border-radius:8px;font-size:14px;font-weight:500;transition:all .15s" id="lbl-entrega">
+              <input type="checkbox" id="tipo-entrega" value="Entrega" onchange="actualizarTipoClase()" style="width:auto"> Entrega
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:7px 12px;border:1.5px solid var(--border-strong);border-radius:8px;font-size:14px;font-weight:500;transition:all .15s" id="lbl-parcial">
+              <input type="checkbox" id="tipo-parcial" value="Parcial" onchange="actualizarTipoClase()" style="width:auto"> Parcial
+            </label>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Tema <span style="font-weight:400;color:var(--text-muted)">(opcional)</span></label>
+          <input type="text" id="nombre-clase" placeholder="Ej: Perspectiva, Color, Materiales...">
         </div>
         <div class="field">
           <label class="field-label">Ventana de tiempo</label>
@@ -281,6 +321,7 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
         <div class="qr-badge" id="qr-badge"></div>
         <div class="qr-timer" id="timer"></div>
         <div class="qr-label" id="qr-label">Activá una sesión para generar el QR</div>
+        <button class="btn-show-qr" id="btn-show-qr" style="display:none" onclick="mostrarModalQR()">⛶ Ver QR grande</button>
       </div>
     </div>
 
@@ -501,6 +542,22 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
   </div>
 </div>
 
+<!-- QR MODAL FLOTANTE -->
+<div class="qr-modal" id="qr-modal">
+  <div class="qr-modal-header" id="qr-modal-header">
+    <span class="qr-modal-title">Código QR</span>
+    <span class="qr-modal-badge" id="qr-modal-badge">Clase</span>
+    <button class="qr-modal-close" onclick="ocultarModalQR()">✕</button>
+  </div>
+  <div class="qr-modal-body">
+    <div class="qr-modal-frame" id="qr-modal-frame">
+      <div id="qrcode-modal"></div>
+    </div>
+    <div class="qr-modal-timer" id="qr-modal-timer">--:--</div>
+    <div class="qr-modal-label" id="qr-modal-label">Escaneá para marcar presencia</div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -519,6 +576,94 @@ var consultaScores = {};
 var todosResumenes = [];
 
 setInterval(function(){ document.getElementById('clock').textContent = new Date().toTimeString().slice(0,8); }, 1000);
+
+// ── QR MODAL ──
+var _qrModalUrl = '';
+var _qrModalNombre = '';
+
+function mostrarModalQR() {
+  var modal = document.getElementById('qr-modal');
+  modal.classList.add('visible');
+  document.getElementById('qrcode-modal').innerHTML = '';
+  if (_qrModalUrl) {
+    new QRCode(document.getElementById('qrcode-modal'), {text:_qrModalUrl, width:280, height:280, colorDark:'#111827', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M});
+  }
+}
+
+function ocultarModalQR() {
+  document.getElementById('qr-modal').classList.remove('visible');
+}
+
+function actualizarModalQR(url, nombre, timerEl) {
+  _qrModalUrl = url;
+  _qrModalNombre = nombre;
+  document.getElementById('qr-modal-badge').textContent = nombre || 'Clase';
+  // sincronizar timer con el modal
+  var src = document.getElementById('timer');
+  var dst = document.getElementById('qr-modal-timer');
+  if (src && dst) dst.textContent = src.textContent;
+}
+
+// Drag del modal
+(function() {
+  var el, dragging = false, ox, oy;
+  document.addEventListener('DOMContentLoaded', function() {
+    el = document.getElementById('qr-modal');
+    var header = document.getElementById('qr-modal-header');
+    header.addEventListener('mousedown', function(e) {
+      dragging = true;
+      ox = e.clientX - el.offsetLeft;
+      oy = e.clientY - el.offsetTop;
+      el.style.left = el.offsetLeft + 'px';
+      el.style.transform = 'none';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (!dragging) return;
+      el.style.left = (e.clientX - ox) + 'px';
+      el.style.top  = (e.clientY - oy) + 'px';
+    });
+    document.addEventListener('mouseup', function() { dragging = false; });
+  });
+})();
+
+function actualizarTipoClase() {
+  ['consulta','teorico','entrega','parcial'].forEach(function(t) {
+    var cb = document.getElementById('tipo-'+t);
+    var lbl = document.getElementById('lbl-'+t);
+    if (cb.checked) {
+      lbl.style.borderColor = 'var(--cobalt)';
+      lbl.style.background = 'var(--cobalt-light)';
+      lbl.style.color = 'var(--cobalt)';
+    } else {
+      lbl.style.borderColor = 'var(--border-strong)';
+      lbl.style.background = '';
+      lbl.style.color = '';
+    }
+  });
+}
+
+function getTipoClase() {
+  var tipos = [];
+  ['consulta','teorico','entrega','parcial'].forEach(function(t) {
+    var cb = document.getElementById('tipo-'+t);
+    if (cb && cb.checked) tipos.push(cb.value);
+  });
+  return tipos.join('+') || 'Consulta';
+}
+
+// Resaltar tipo de clase inicial
+setTimeout(function(){ actualizarTipoClase(); }, 100);
+
+// Fecha automática en el campo de configuración de clase
+(function() {
+  var now = new Date();
+  var offset = -3 * 60;
+  var local = new Date(now.getTime() + (offset - now.getTimezoneOffset()) * 60000);
+  var dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  document.getElementById('fecha-clase').value = dias[local.getDay()] + ' ' + local.getDate() + ' de ' + meses[local.getMonth()] + ' ' + local.getFullYear();
+})();
 
 function api(action, extra, callback) {
   fetch(SCRIPT_URL, {
@@ -823,6 +968,9 @@ function mostrarQR(url, nombre) {
   badge.style.display = 'inline-block';
   badge.textContent = nombre || 'Clase';
   new QRCode(document.getElementById('qrcode'), {text:url, width:180, height:180, colorDark:'#111827', colorLight:'#fff', correctLevel:QRCode.CorrectLevel.M});
+  document.getElementById('btn-show-qr').style.display = 'block';
+  _qrModalUrl = url; _qrModalNombre = nombre || 'Clase';
+  document.getElementById('qr-modal-badge').textContent = nombre || 'Clase';
 }
 
 function ocultarQR() {
@@ -832,6 +980,8 @@ function ocultarQR() {
   document.getElementById('qr-label').textContent = 'Activá una sesión para generar el QR';
   document.getElementById('qr-frame').classList.remove('active');
   document.getElementById('qr-badge').style.display = 'none';
+  document.getElementById('btn-show-qr').style.display = 'none';
+  ocultarModalQR();
 }
 
 var enTardanza = false;
@@ -872,7 +1022,10 @@ function startTimer() {
       return;
     }
     el.className = 'qr-timer' + (enTardanza ? ' warn' : (timerSec<=60 ? ' warn' : ''));
-    el.textContent = String(Math.floor(timerSec/60)).padStart(2,'0')+':'+String(timerSec%60).padStart(2,'0');
+    var txt = String(Math.floor(timerSec/60)).padStart(2,'0')+':'+String(timerSec%60).padStart(2,'0');
+    el.textContent = txt;
+    var mt = document.getElementById('qr-modal-timer');
+    if (mt) { mt.textContent = txt; mt.className = 'qr-modal-timer' + (enTardanza ? ' warn' : (timerSec<=60 ? ' warn' : '')); }
   }, 1000);
 }
 
