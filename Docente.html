@@ -112,6 +112,11 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .cfg-title{font-size:17px;font-weight:700;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
 .item-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.materia-expand-card{border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px}
+.materia-expand-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--bg);cursor:pointer;gap:10px;transition:background .15s}
+.materia-expand-header:hover{background:var(--cobalt-light)}
+.materia-expand-body{padding:16px;border-top:1.5px solid var(--border);background:var(--white)}
+.expand-arrow{font-size:12px;color:var(--text-muted)}
 .item-row{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;gap:10px}
 .item-name{font-size:15px;font-weight:600;margin-bottom:2px}
 .item-meta{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
@@ -162,6 +167,8 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
 .tipo-btn.active{background:var(--cobalt);color:white;border-color:var(--cobalt)}
 .tipo-btn.recup{border-color:var(--orange-border);color:var(--orange)}
 .tipo-btn.recup.active{background:var(--orange);color:white}
+.tipo-btn.entrega{border-color:var(--cobalt-mid);color:var(--cobalt)}
+.tipo-btn.entrega.active{background:var(--cobalt);color:white}
 .eval-alumno-row{display:flex;align-items:center;padding:10px 12px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;gap:10px;margin-bottom:5px}
 .eval-alumno-row.aprobado{border-color:var(--green-border);background:var(--green-bg)}
 .eval-alumno-row.reprobado{border-color:var(--red-border);background:var(--red-bg)}
@@ -556,6 +563,20 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
     </div>
   </div>
   <div class="card" style="margin-top:20px">
+    <div class="cfg-title">Nómina general de alumnos</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Importá la nómina una vez al inicio del cuatrimestre. Los docentes arman sus grupos desde esta lista.</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input type="text" id="nomina-url" placeholder="URL CSV de Google Sheets (publicado como CSV)" style="flex:1;font-size:13px;padding:8px 12px;border:1.5px solid var(--border-strong);border-radius:8px">
+      <button onclick="importarNomina()" class="btn btn-primary" style="padding:8px 16px;font-size:13px;white-space:nowrap">Importar</button>
+    </div>
+    <div id="nomina-status" style="font-size:12px;color:var(--text-muted)"></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <input type="text" id="nomina-busq" placeholder="Buscar alumno en la nómina..." style="flex:1;font-size:13px;padding:7px 12px;border:1.5px solid var(--border-strong);border-radius:8px" oninput="buscarNomina()">
+    </div>
+    <div id="nomina-res" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
     <div class="cfg-title">Grupos</div>
     <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:180px">
@@ -605,7 +626,7 @@ select:focus,input[type="text"]:focus,input[type="password"]:focus{border-color:
 <div class="toast" id="toast"></div>
 
 <script>
-var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwS1guDxH4qsTe1GIi8lv0-5L-w5U8b40GIvkzOrCdNx6h6g2UZmutmEVKOEQ29JGtyzA/exec';
+var SCRIPT_URL = 'PONER_URL_ACA';
 var usuario = null;
 var sesionActiva = false;
 var timerSec = 600;
@@ -865,18 +886,167 @@ function cargarMaterias() {
 function cargarVistaMateria() {
   api('getMaterias', {docenteId: usuario.id, rol: usuario.rol}, function(r) {
     if (!r.ok) return;
+    materias = r.materias;
     var list = document.getElementById('mis-materias-list');
     if (!r.materias.length) { list.innerHTML = '<div class="empty-state">Sin materias. Agregá una.</div>'; return; }
     list.innerHTML = r.materias.map(function(m) {
-      return '<div class="item-row">' +
-        '<div style="flex:1"><div class="item-name">'+m.nombre+'</div>' +
-        '<div class="item-meta">'+m.aula+(m.urlAlumnos?' &middot; &#128196; Lista':' &middot; Sin lista')+(m.sheetId?' &middot; &#128202; Sheet':' &middot; Sin sheet')+'</div></div>' +
-        '<div class="item-btns">' +
-        '<button class="btn-ico" onclick="abrirEditMateria(\''+m.id+'\',\''+esc(m.nombre)+'\',\''+esc(m.aula)+'\',\''+esc(m.urlAlumnos||'')+'\',\''+esc(m.sheetId||'')+'\','+(m.pesoTardanza||100)+')">&#9998;</button>' +
-        '<button class="btn-ico del" onclick="eliminarMateria(\''+m.id+'\')">&#10005;</button>' +
-        '</div></div>';
+      var configOk = m.cantTP !== null || m.cantParcial !== null;
+      return '<div class="materia-expand-card" id="mcard-'+m.id+'">' +
+        '<div class="materia-expand-header" onclick="toggleMateriaExpand(\''+m.id+'\')">' +
+          '<div><div class="item-name">'+m.nombre+'</div>' +
+          '<div class="item-meta">'+m.aula+(configOk?' &middot; &#10003; Configurada':' &middot; &#9888; Sin config')+'</div></div>' +
+          '<div style="display:flex;gap:6px;align-items:center">' +
+          '<button class="btn-ico del" onclick="event.stopPropagation();eliminarMateria(\''+m.id+'\')">&#10005;</button>' +
+          '<span class="expand-arrow" id="arrow-'+m.id+'">&#9660;</span></div>' +
+        '</div>' +
+        '<div class="materia-expand-body" id="mbody-'+m.id+'" style="display:none">' +
+          '<div style="border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:16px">' +
+            '<div class="field-label" style="margin-bottom:10px">Evaluaciones del curso</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">' +
+              '<div class="eval-input-wrap"><span class="eval-input-label">TPs</span>' +
+              '<input class="eval-num" type="number" min="0" max="20" id="cfg-tp-'+m.id+'" value="'+(m.cantTP!==null?m.cantTP:'')+'" placeholder="0"></div>' +
+              '<div class="eval-input-wrap"><span class="eval-input-label">Parciales</span>' +
+              '<input class="eval-num" type="number" min="0" max="10" id="cfg-par-'+m.id+'" value="'+(m.cantParcial!==null?m.cantParcial:'')+'" placeholder="0"></div>' +
+              '<div class="eval-input-wrap"><span class="eval-input-label">Entregas</span>' +
+              '<input class="eval-num" type="number" min="0" max="20" id="cfg-ent-'+m.id+'" value="'+(m.cantEntrega!==null?m.cantEntrega:'')+'" placeholder="0"></div>' +
+              '<div class="eval-input-wrap"><span class="eval-input-label">Recuper.</span>' +
+              '<input class="eval-num" type="number" min="0" max="20" id="cfg-rec-'+m.id+'" value="'+(m.cantRecup!==null?m.cantRecup:'')+'" placeholder="0"></div>' +
+            '</div>' +
+            '<button onclick="guardarConfigMateria(\''+m.id+'\')" class="btn btn-primary" style="margin-top:10px;padding:7px 18px;font-size:13px">Guardar configuración</button>' +
+          '</div>' +
+          '<div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
+              '<div class="field-label" style="margin-bottom:0">Mis grupos</div>' +
+              '<button onclick="toggleFormGrupoMat(\''+m.id+'\')" style="font-size:12px;font-weight:700;padding:4px 10px;border:1.5px solid var(--cobalt);border-radius:7px;background:var(--cobalt-light);color:var(--cobalt);cursor:pointer">+ Nuevo grupo</button>' +
+            '</div>' +
+            '<div id="form-grupo-mat-'+m.id+'" style="display:none;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px">' +
+              '<div class="field" style="margin-bottom:8px"><label class="field-label">Nombre del grupo</label>' +
+              '<input type="text" id="gm-nombre-'+m.id+'" placeholder="Ej: Comisión A, Turno tarde..."></div>' +
+              '<div style="display:flex;gap:8px">' +
+              '<button onclick="crearGrupoMat(\''+m.id+'\')" class="btn btn-primary" style="padding:7px 14px;font-size:13px">Guardar</button>' +
+              '<button onclick="toggleFormGrupoMat(\''+m.id+'\')" style="padding:7px 12px;border:1.5px solid var(--border-strong);border-radius:8px;background:transparent;cursor:pointer;font-size:13px">Cancelar</button>' +
+              '</div>' +
+            '</div>' +
+            '<div id="grupos-mat-'+m.id+'"><div class="empty-state" style="font-size:12px">Sin grupos</div></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
     }).join('');
+  });
+}
+
+function toggleMateriaExpand(matId) {
+  var body = document.getElementById('mbody-'+matId);
+  var arrow = document.getElementById('arrow-'+matId);
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  arrow.innerHTML = open ? '&#9660;' : '&#9650;';
+  if (!open) cargarGruposMat(matId);
+}
+
+function guardarConfigMateria(matId) {
+  api('saveMateriaConfig', {
+    materiaId: matId,
+    cantTP:      parseInt(document.getElementById('cfg-tp-'+matId).value)  || 0,
+    cantParcial: parseInt(document.getElementById('cfg-par-'+matId).value) || 0,
+    cantEntrega: parseInt(document.getElementById('cfg-ent-'+matId).value) || 0,
+    cantRecup:   parseInt(document.getElementById('cfg-rec-'+matId).value) || 0
+  }, function(r) {
+    if (r.ok) { toast('Configuración guardada','tok'); cargarVistaMateria(); }
+    else toast('Error: '+(r.error||''),'terr');
+  });
+}
+
+function toggleFormGrupoMat(matId) {
+  var f = document.getElementById('form-grupo-mat-'+matId);
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+}
+
+function crearGrupoMat(matId) {
+  var nombre = document.getElementById('gm-nombre-'+matId).value.trim();
+  if (!nombre) { toast('Ingresá un nombre para el grupo','twarn'); return; }
+  api('saveGrupo', {materiaId: matId, docenteId: usuario.id, nombre: nombre, tpNumero: 0}, function(r) {
+    if (!r.ok) { toast('Error','terr'); return; }
+    toast('Grupo creado','tok');
+    document.getElementById('gm-nombre-'+matId).value = '';
+    toggleFormGrupoMat(matId);
+    cargarGruposMat(matId);
     cargarMaterias();
+  });
+}
+
+function cargarGruposMat(matId) {
+  api('getGrupos', {materiaId: matId, docenteId: usuario.id}, function(r) {
+    var cont = document.getElementById('grupos-mat-'+matId);
+    if (!r.ok || !r.grupos.length) { cont.innerHTML = '<div class="empty-state" style="font-size:12px">Sin grupos creados</div>'; return; }
+    cont.innerHTML = r.grupos.map(function(g) {
+      return '<div style="border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px" id="gblock-'+g.id+'">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+          '<div style="font-size:13px;font-weight:700">'+g.nombre+'</div>' +
+          '<button onclick="eliminarGrupoMat(\''+g.id+'\',\''+matId+'\')" style="font-size:11px;padding:2px 8px;border:1px solid var(--red-border);color:var(--red);background:var(--red-bg);border-radius:6px;cursor:pointer">Eliminar</button>' +
+        '</div>' +
+        '<div id="al-grupo-'+g.id+'"><div style="font-size:12px;color:var(--text-muted)">Cargando...</div></div>' +
+        '<div style="margin-top:8px;display:flex;gap:6px">' +
+          '<input type="text" id="busq-'+g.id+'" placeholder="Buscar alumno por nombre o legajo..." style="flex:1;font-size:12px;padding:6px 10px;border:1.5px solid var(--border-strong);border-radius:7px;background:var(--white)" oninput="buscarAlumnoParaGrupo(\''+g.id+'\')">' +
+        '</div>' +
+        '<div id="busq-res-'+g.id+'" style="margin-top:4px"></div>' +
+      '</div>';
+    }).join('');
+    r.grupos.forEach(function(g){ cargarAlumnosDeGrupo(g.id); });
+  });
+}
+
+function cargarAlumnosDeGrupo(grupoId) {
+  api('getAlumnosGrupo', {grupoId: grupoId}, function(r) {
+    var cont = document.getElementById('al-grupo-'+grupoId);
+    if (!cont) return;
+    if (!r.ok || !r.alumnos.length) { cont.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">Sin alumnos asignados</div>'; return; }
+    cont.innerHTML = '<div style="display:flex;flex-direction:column;gap:4px">' +
+      r.alumnos.map(function(a) {
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:var(--bg);border-radius:6px;font-size:12px">' +
+          '<span>'+a.nombre+' <span style="color:var(--text-muted);font-family:var(--mono)">'+a.legajo+'</span></span>' +
+          '<button onclick="quitarAlumnoGrupo(\''+grupoId+'\',\''+a.legajo+'\')" style="font-size:11px;padding:1px 7px;border:1px solid var(--border-strong);border-radius:5px;background:transparent;cursor:pointer;color:var(--text-mid)">&#10005;</button>' +
+        '</div>';
+      }).join('') + '</div>';
+  });
+}
+
+function buscarAlumnoParaGrupo(grupoId) {
+  var q = document.getElementById('busq-'+grupoId).value.trim();
+  if (q.length < 2) { document.getElementById('busq-res-'+grupoId).innerHTML = ''; return; }
+  api('getAlumnosGlobal', {q: q}, function(r) {
+    var res = document.getElementById('busq-res-'+grupoId);
+    if (!r.ok || !r.alumnos.length) { res.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:4px">Sin resultados</div>'; return; }
+    res.innerHTML = '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;max-height:160px;overflow-y:auto">' +
+      r.alumnos.slice(0,10).map(function(a) {
+        return '<div onclick="agregarAlumnoGrupo(\''+grupoId+'\',\''+a.legajo+'\',\''+esc(a.nombre)+'\')" style="padding:6px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);background:var(--white)" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'var(--white)\'">' +
+          a.nombre+' <span style="color:var(--text-muted);font-family:var(--mono)">'+a.legajo+'</span></div>';
+      }).join('') + '</div>';
+  });
+}
+
+function agregarAlumnoGrupo(grupoId, legajo, nombre) {
+  api('asignarAlumnoGrupo', {grupoId: grupoId, legajo: legajo}, function(r) {
+    if (!r.ok) { toast('Error','terr'); return; }
+    document.getElementById('busq-'+grupoId).value = '';
+    document.getElementById('busq-res-'+grupoId).innerHTML = '';
+    cargarAlumnosDeGrupo(grupoId);
+    toast(nombre.split(',')[0]+' agregado','tok');
+  });
+}
+
+function quitarAlumnoGrupo(grupoId, legajo) {
+  api('removeAlumnoGrupo', {grupoId: grupoId, legajo: legajo}, function(r) {
+    if (r.ok) cargarAlumnosDeGrupo(grupoId);
+    else toast('Error','terr');
+  });
+}
+
+function eliminarGrupoMat(grupoId, matId) {
+  if (!confirm('¿Eliminar este grupo y todos sus alumnos asignados?')) return;
+  api('deleteGrupo', {id: grupoId}, function(r) {
+    if (r.ok) { toast('Grupo eliminado','twarn'); cargarGruposMat(matId); cargarMaterias(); }
+    else toast('Error','terr');
   });
 }
 
@@ -931,6 +1101,35 @@ function eliminarMateria(id) {
   api('deleteMateria', {id:id}, function(r) {
     if (r.ok) { toast('Materia eliminada','twarn'); cargarVistaMateria(); }
     else toast('Error','terr');
+  });
+}
+
+function importarNomina() {
+  var url = document.getElementById('nomina-url').value.trim();
+  if (!url) { toast('Ingresá una URL','twarn'); return; }
+  document.getElementById('nomina-status').textContent = 'Importando...';
+  api('getAlumnos', {urlAlumnos: url}, function(r) {
+    if (!r.ok) { document.getElementById('nomina-status').textContent = 'Error: '+r.error; return; }
+    api('importarAlumnos', {alumnos: r.alumnos}, function(ri) {
+      if (!ri.ok) { document.getElementById('nomina-status').textContent = 'Error al guardar'; return; }
+      document.getElementById('nomina-status').textContent = ri.importados+' alumnos importados ('+ri.total+' en el CSV, '+( ri.total - ri.importados)+' ya existían)';
+      toast('Nómina importada','tok');
+    });
+  });
+}
+
+function buscarNomina() {
+  var q = document.getElementById('nomina-busq').value.trim();
+  if (q.length < 2) { document.getElementById('nomina-res').innerHTML = ''; return; }
+  api('getAlumnosGlobal', {q: q}, function(r) {
+    var res = document.getElementById('nomina-res');
+    if (!r.ok || !r.alumnos.length) { res.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">Sin resultados</div>'; return; }
+    res.innerHTML = '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
+      r.alumnos.slice(0,15).map(function(a) {
+        return '<div style="padding:7px 12px;font-size:13px;border-bottom:1px solid var(--border)">'+
+          a.nombre+' <span style="color:var(--text-muted);font-family:var(--mono)">'+a.legajo+'</span>'+
+          (a.carrera ? ' · '+a.carrera : '')+'</div>';
+      }).join('')+'</div>';
   });
 }
 
@@ -1289,7 +1488,10 @@ function abrirConsulta(ses) {
   }, function(r) {
     if (!r.ok) { toast('Error abriendo consulta','terr'); return; }
     sesionEvalActual = r;
-    api('getAlumnos', {urlAlumnos: urlAlumnos}, function(ra) {
+    var fetchAlumnos = grupoId
+      ? function(cb){ api('getAlumnosGrupo', {grupoId: grupoId}, cb); }
+      : function(cb){ api('getAlumnos', {urlAlumnos: urlAlumnos}, cb); };
+    fetchAlumnos(function(ra) {
       if (!ra.ok) { toast('Error cargando lista','terr'); return; }
       var listaAlumnos = ra.alumnos;
       var hoy = new Date();
@@ -1379,15 +1581,18 @@ var evalTipoActual = null;
 var evalAlumnos = [];
 var evalSesionId = null;
 
-function getEvalTipos(tpNumero) {
-  var n = tpNumero !== undefined && tpNumero !== null ? tpNumero : 4;
+function getEvalTipos(matId) {
+  var mat = materias.find(function(m){ return m.id === matId; });
+  if (!mat || (mat.cantTP === null && mat.cantParcial === null)) return null;
+  var nTP  = mat.cantTP      || 0;
+  var nPar = mat.cantParcial || 0;
+  var nEnt = mat.cantEntrega || 0;
+  var nRec = mat.cantRecup   || 0;
   var tipos = [];
-  for (var i = 1; i <= n; i++) tipos.push({ id:'tp'+i, label:'TP '+i, tipo:'tp' });
-  tipos.push({ id:'parcial1', label:'Parcial 1', tipo:'parcial' });
-  tipos.push({ id:'parcial2', label:'Parcial 2', tipo:'parcial' });
-  for (var j = 1; j <= n; j++) tipos.push({ id:'recup_tp'+j, label:'Recup. TP '+j, tipo:'recup' });
-  tipos.push({ id:'recup_parcial1', label:'Recup. P1', tipo:'recup' });
-  tipos.push({ id:'recup_parcial2', label:'Recup. P2', tipo:'recup' });
+  for (var i = 1; i <= nTP;  i++) tipos.push({ id:'tp'+i,      label:'TP '+i,      tipo:'tp' });
+  for (var j = 1; j <= nPar; j++) tipos.push({ id:'parcial'+j, label:'Parcial '+j,  tipo:'parcial' });
+  for (var k = 1; k <= nEnt; k++) tipos.push({ id:'entrega'+k, label:'Entrega '+k,  tipo:'entrega' });
+  for (var l = 1; l <= nRec; l++) tipos.push({ id:'recup'+l,   label:'Recuper. '+l, tipo:'recup' });
   return tipos;
 }
 
@@ -1403,25 +1608,27 @@ function onEvalMateriaChange() {
   if (!matId) { document.getElementById('eval-tipos').innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:8px 0">Seleccioná una materia</div>'; return; }
   cargarGruposEnSel(matId, 'eval-sel-grupo', function(grupos) {
     document.getElementById('eval-field-grupo').style.display = grupos.length ? '' : 'none';
-    var tp = grupos.length ? (grupos[0].tpNumero || 4) : 4;
-    renderEvalTipos(tp);
   });
-  renderEvalTipos(grupoActual ? grupoActual.tpNumero : 4);
+  renderEvalTipos(matId);
 }
 
-function renderEvalTipos(tpNumero) {
-  document.getElementById('eval-tipos').innerHTML = getEvalTipos(tpNumero).map(function(t) {
-    return '<button class="tipo-btn'+(t.tipo==='recup'?' recup':'')+'" onclick="selEvalTipo(\''+t.id+'\',\''+t.label+'\',\''+t.tipo+'\',this)">'+t.label+'</button>';
+function renderEvalTipos(matId) {
+  var tipos = getEvalTipos(matId);
+  if (!tipos) {
+    document.getElementById('eval-tipos').innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:8px 0">Configurá la materia en "Mis Materias" para ver los tipos de evaluación</div>';
+    return;
+  }
+  document.getElementById('eval-tipos').innerHTML = tipos.map(function(t) {
+    var cls = t.tipo==='recup' ? ' recup' : (t.tipo==='entrega' ? ' entrega' : '');
+    return '<button class="tipo-btn'+cls+'" onclick="selEvalTipo(\''+t.id+'\',\''+t.label+'\',\''+t.tipo+'\',this)">'+t.label+'</button>';
   }).join('');
 }
 
 function onEvalGrupoChange() {
-  var sel = document.getElementById('eval-sel-grupo');
-  var opt = sel.options[sel.selectedIndex];
-  var tp = opt.value ? (parseInt(opt.getAttribute('data-tp')) || 4) : 4;
+  var matId = document.getElementById('eval-sel-materia').value;
   evalTipoActual = null;
   document.getElementById('eval-form').style.display = 'none';
-  renderEvalTipos(tp);
+  renderEvalTipos(matId);
 }
 
 function selEvalTipo(tipoId, label, tipoCat, btn) {
