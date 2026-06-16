@@ -15,11 +15,11 @@ var TAB_DISPOSITIVOS  = 'Dispositivos';
 var TAB_GRUPOS        = 'Grupos';
 var TAB_SESIONES_EVAL = 'SesionesEval';
 var TAB_EVALUACIONES  = 'Evaluaciones';
+var TAB_ALUMNOS       = 'Alumnos';
+var TAB_GRUPO_ALUMNOS = 'GrupoAlumnos';
 
 var NOTA_APROBACION = 60;
 var NOTA_PROMOCION  = 80;
-var TIPOS_TP        = ['tp1','tp2','tp3','tp4'];
-var TIPOS_PARCIAL   = ['parcial1','parcial2'];
 
 // ── ENTRY POINT ──────────────────────────────────────────────
 function doGet(e) {
@@ -62,10 +62,16 @@ function doPost(e) {
   else if (action === 'getDashboard')        result = getDashboard(data);
   else if (action === 'toggleManual')      result = toggleManual(data);
   else if (action === 'getRegistrosDia')   result = getRegistrosDia(data);
-  else if (action === 'getGrupos')         result = getGrupos(data);
-  else if (action === 'saveGrupo')         result = saveGrupo(data);
-  else if (action === 'editarGrupo')       result = editarGrupo(data);
-  else if (action === 'deleteGrupo')       result = deleteGrupo(data);
+  else if (action === 'getGrupos')           result = getGrupos(data);
+  else if (action === 'saveGrupo')           result = saveGrupo(data);
+  else if (action === 'editarGrupo')         result = editarGrupo(data);
+  else if (action === 'deleteGrupo')         result = deleteGrupo(data);
+  else if (action === 'getAlumnosGlobal')    result = getAlumnosGlobal(data);
+  else if (action === 'importarAlumnos')     result = importarAlumnos(data);
+  else if (action === 'getAlumnosGrupo')     result = getAlumnosGrupo(data);
+  else if (action === 'asignarAlumnoGrupo')  result = asignarAlumnoGrupo(data);
+  else if (action === 'removeAlumnoGrupo')   result = removeAlumnoGrupo(data);
+  else if (action === 'saveMateriaConfig')   result = saveMateriaConfig(data);
   else if (action === 'abrirSesionEval')   result = abrirSesionEval(data);
   else if (action === 'cerrarSesionEval')  result = cerrarSesionEval(data);
   else if (action === 'getSesionesEval')   result = getSesionesEval(data);
@@ -114,13 +120,15 @@ function setupSheets() {
     }
 
     crearSiNoExiste(TAB_DOCENTES,  ['ID','Nombre','Password','Email','FechaAlta']);
-    crearSiNoExiste(TAB_MATERIAS,  ['ID','DocenteID','NombreMateria','NombreAula','RadioMetros','URL_Alumnos','SheetAsistencia_ID','FechaAlta','PesoTardanza']);
+    crearSiNoExiste(TAB_MATERIAS,  ['ID','DocenteID','NombreMateria','NombreAula','RadioMetros','URL_Alumnos','SheetAsistencia_ID','FechaAlta','PesoTardanza','CantTP','CantParcial','CantEntrega','CantRecup']);
     crearSiNoExiste(TAB_REGISTROS, ['Fecha','Hora','Legajo','Alumno','MateriaID','Aula','Lat','Lng','Distancia','EstadoGPS','Token','DeviceId']);
     crearSiNoExiste(TAB_SESIONES,  ['Token','DocenteID','MateriaID','NombreMateria','NombreAula','Expira','Fecha','NombreClase','HoraInicio','URL_Alumnos','SheetAsistencia_ID']);
     crearSiNoExiste(TAB_DISPOSITIVOS,   ['DeviceId','Legajo','Nombre','MateriaID','FechaVinculo']);
-    crearSiNoExiste(TAB_GRUPOS,         ['ID','MateriaID','DocenteID','Nombre','TPNumero','FechaInicio','FechaFin']);
+    crearSiNoExiste(TAB_GRUPOS,         ['ID','MateriaID','DocenteID','Nombre','TPNumero','FechaInicio','FechaFin','URLAlumnos']);
     crearSiNoExiste(TAB_SESIONES_EVAL,  ['ID','MateriaID','DocenteID','GrupoID','TipoActividad','Nombre','Fecha','Estado','AsistenciaToken']);
     crearSiNoExiste(TAB_EVALUACIONES,   ['ID','SesionEvalID','Legajo','Alumno','DocenteID','TipoActividad','Calificacion','Proceso','Presentacion','Comentario','Fecha','Hora','EsRecuperatorio','SesionOriginalID']);
+    crearSiNoExiste(TAB_ALUMNOS,        ['Legajo','Nombre','Carrera','FechaAlta']);
+    crearSiNoExiste(TAB_GRUPO_ALUMNOS,  ['ID','GrupoID','Legajo']);
 
     // Verificar si ya existe admin
     var doc = ss.getSheetByName(TAB_DOCENTES);
@@ -249,7 +257,7 @@ function getMaterias(data) {
     if (data.rol === 'admin') return true;
     return String(r[1]) === String(data.docenteId);
   }).map(function(r) {
-    return { id: r[0], docenteId: r[1], nombre: r[2], aula: r[3], radio: r[4]||200, urlAlumnos: r[5]||'', sheetId: extractSheetId(r[6]), pesoTardanza: r[8] !== undefined && r[8] !== '' ? parseInt(r[8]) : 100 };
+    return { id: r[0], docenteId: r[1], nombre: r[2], aula: r[3], radio: r[4]||200, urlAlumnos: r[5]||'', sheetId: extractSheetId(r[6]), pesoTardanza: r[8] !== undefined && r[8] !== '' ? parseInt(r[8]) : 100, cantTP: r[9]!==undefined&&r[9]!=='' ? parseInt(r[9]) : null, cantParcial: r[10]!==undefined&&r[10]!=='' ? parseInt(r[10]) : null, cantEntrega: r[11]!==undefined&&r[11]!=='' ? parseInt(r[11]) : null, cantRecup: r[12]!==undefined&&r[12]!=='' ? parseInt(r[12]) : null };
   });
   return { ok: true, materias: materias };
 }
@@ -765,6 +773,103 @@ function deleteGrupo(data) {
     if (String(rows[i][0]) === String(data.id)) { sh.deleteRow(i+1); return { ok: true }; }
   }
   return { ok: false, error: 'Grupo no encontrado' };
+}
+
+// ── MATERIA CONFIG ───────────────────────────────────────────
+function saveMateriaConfig(data) {
+  var ss  = SpreadsheetApp.openById(SHEET_ID);
+  var mat = ss.getSheetByName(TAB_MATERIAS);
+  var rows = mat.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(data.materiaId)) {
+      if (data.cantTP      !== undefined) mat.getRange(i+1,10).setValue(data.cantTP);
+      if (data.cantParcial !== undefined) mat.getRange(i+1,11).setValue(data.cantParcial);
+      if (data.cantEntrega !== undefined) mat.getRange(i+1,12).setValue(data.cantEntrega);
+      if (data.cantRecup   !== undefined) mat.getRange(i+1,13).setValue(data.cantRecup);
+      return { ok: true };
+    }
+  }
+  return { ok: false, error: 'Materia no encontrada' };
+}
+
+// ── NÓMINA GENERAL ───────────────────────────────────────────
+function getAlumnosGlobal(data) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sh = ss.getSheetByName(TAB_ALUMNOS);
+  if (!sh) return { ok: true, alumnos: [] };
+  var rows = sh.getDataRange().getValues().slice(1);
+  var q = data.q ? String(data.q).toLowerCase() : '';
+  var alumnos = rows.filter(function(r) {
+    if (!r[0]) return false;
+    if (!q) return true;
+    return String(r[0]).toLowerCase().indexOf(q) !== -1 || String(r[1]).toLowerCase().indexOf(q) !== -1;
+  }).map(function(r) {
+    return { legajo: String(r[0]).trim(), nombre: String(r[1]).trim(), carrera: String(r[2]||'').trim() };
+  });
+  return { ok: true, alumnos: alumnos };
+}
+
+function importarAlumnos(data) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var sh = ss.getSheetByName(TAB_ALUMNOS);
+  if (!sh) { setupSheets(); sh = ss.getSheetByName(TAB_ALUMNOS); }
+  var alumnos = data.alumnos || [];
+  var rows = sh.getDataRange().getValues().slice(1);
+  var existentes = {};
+  rows.forEach(function(r){ if (r[0]) existentes[String(r[0]).trim()] = true; });
+  var nuevos = 0;
+  alumnos.forEach(function(a) {
+    if (!existentes[String(a.legajo).trim()]) {
+      sh.appendRow([a.legajo, a.nombre, a.carrera||'', new Date()]);
+      nuevos++;
+    }
+  });
+  return { ok: true, importados: nuevos, total: alumnos.length };
+}
+
+function getAlumnosGrupo(data) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var ga = ss.getSheetByName(TAB_GRUPO_ALUMNOS);
+  if (!ga) return { ok: true, alumnos: [] };
+  var gaRows = ga.getDataRange().getValues().slice(1);
+  var legajos = gaRows.filter(function(r){ return r[0] && String(r[1]) === String(data.grupoId); }).map(function(r){ return String(r[2]).trim(); });
+  if (!legajos.length) return { ok: true, alumnos: [] };
+  var al = ss.getSheetByName(TAB_ALUMNOS);
+  if (!al) return { ok: true, alumnos: [] };
+  var alRows = al.getDataRange().getValues().slice(1);
+  var legSet = {};
+  legajos.forEach(function(l){ legSet[l] = true; });
+  var alumnos = alRows.filter(function(r){ return r[0] && legSet[String(r[0]).trim()]; }).map(function(r) {
+    return { legajo: String(r[0]).trim(), nombre: String(r[1]).trim(), carrera: String(r[2]||'').trim() };
+  });
+  return { ok: true, alumnos: alumnos };
+}
+
+function asignarAlumnoGrupo(data) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var ga = ss.getSheetByName(TAB_GRUPO_ALUMNOS);
+  if (!ga) { setupSheets(); ga = ss.getSheetByName(TAB_GRUPO_ALUMNOS); }
+  var rows = ga.getDataRange().getValues().slice(1);
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][1]) === String(data.grupoId) && String(rows[i][2]).trim() === String(data.legajo).trim()) {
+      return { ok: true, yaExiste: true };
+    }
+  }
+  ga.appendRow([generarId(), data.grupoId, data.legajo]);
+  return { ok: true };
+}
+
+function removeAlumnoGrupo(data) {
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var ga = ss.getSheetByName(TAB_GRUPO_ALUMNOS);
+  if (!ga) return { ok: false, error: 'Tabla no encontrada' };
+  var rows = ga.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][1]) === String(data.grupoId) && String(rows[i][2]).trim() === String(data.legajo).trim()) {
+      ga.deleteRow(i+1); return { ok: true };
+    }
+  }
+  return { ok: false, error: 'Alumno no encontrado en el grupo' };
 }
 
 // ── SESIONES EVAL ────────────────────────────────────────────
